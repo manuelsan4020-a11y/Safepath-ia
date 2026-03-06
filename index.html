@@ -1,0 +1,879 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SafePath IA — Tablero Operativo</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --navy:#060D18;--blue:#112244;--accent:#2E75B6;
+  --cyan:#4FC3F7;--red:#E53935;--orange:#FB8C00;--green:#43A047;
+  --gold:#FFB300;--purple:#9C27B0;--paper:#EEE9DF;--dim:rgba(238,233,221,0.38);
+  --grid:rgba(46,117,182,0.06);
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--navy);font-family:'DM Sans',sans-serif;color:var(--paper);height:100vh;overflow:hidden;}
+body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);background-size:48px 48px;pointer-events:none;z-index:0;}
+
+/* ── SHELL ── */
+.shell{position:relative;z-index:1;display:grid;grid-template-rows:auto 1fr auto;height:100vh;padding:14px 18px 11px;gap:10px;}
+
+/* ── HEADER ── */
+.hdr{display:flex;align-items:center;justify-content:space-between;padding-bottom:10px;border-bottom:1px solid rgba(46,117,182,0.25);}
+.brand{display:flex;align-items:baseline;gap:10px;}
+.brand-name{font-family:'Bebas Neue',sans-serif;font-size:1.85rem;letter-spacing:4px;}
+.brand-chip{font-family:'DM Mono',monospace;font-size:0.55rem;letter-spacing:2px;border:1px solid var(--cyan);color:var(--cyan);padding:2px 7px;border-radius:2px;}
+.brand-sub{font-size:0.63rem;color:var(--dim);letter-spacing:1.5px;text-transform:uppercase;font-weight:300;}
+.steps{display:flex;align-items:center;gap:4px;}
+.step{display:flex;align-items:center;gap:5px;font-family:'DM Mono',monospace;font-size:0.56rem;letter-spacing:1px;text-transform:uppercase;color:rgba(238,233,221,0.18);padding:5px 11px;border-radius:4px;border:1px solid rgba(46,117,182,0.1);transition:all .4s;white-space:nowrap;}
+.step.active{color:var(--paper);background:rgba(27,58,107,0.65);border-color:rgba(46,117,182,0.55);}
+.step.done{color:var(--cyan);border-color:rgba(79,195,247,0.28);}
+.step-n{width:15px;height:15px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.52rem;font-weight:700;background:rgba(46,117,182,0.18);transition:background .4s;flex-shrink:0;}
+.step.active .step-n{background:var(--accent);color:#fff;}
+.step.done .step-n{background:var(--cyan);color:var(--navy);}
+.sep{color:rgba(46,117,182,0.28);font-size:0.6rem;}
+
+/* ── MAIN ── */
+.main{display:grid;grid-template-columns:1fr 288px;gap:12px;min-height:0;overflow:hidden;}
+
+/* ── MAP WRAP ── */
+.map-wrap{background:rgba(6,13,24,0.85);border:1px solid rgba(46,117,182,0.22);border-radius:10px;overflow:hidden;display:flex;flex-direction:column;min-height:0;}
+.map-bar{padding:8px 14px;background:rgba(17,34,68,0.6);border-bottom:1px solid rgba(46,117,182,0.18);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;gap:10px;}
+.map-bar-left{display:flex;align-items:center;gap:10px;}
+.map-bar-title{font-family:'DM Mono',monospace;font-size:0.59rem;letter-spacing:2px;text-transform:uppercase;color:var(--cyan);}
+.map-bar-meta{font-family:'DM Mono',monospace;font-size:0.57rem;color:var(--dim);}
+.btn-fullscreen{background:rgba(79,195,247,0.08);border:1px solid rgba(79,195,247,0.35);color:var(--cyan);padding:4px 12px;border-radius:4px;cursor:pointer;font-family:'DM Mono',monospace;font-size:0.58rem;letter-spacing:1.5px;text-transform:uppercase;transition:all .25s;display:flex;align-items:center;gap:5px;}
+.btn-fullscreen:hover{background:rgba(79,195,247,0.18);box-shadow:0 0 10px rgba(79,195,247,0.2);}
+
+/* BANNER */
+#sp-banner{background:linear-gradient(90deg,rgba(79,195,247,0.15),rgba(46,117,182,0.28),rgba(79,195,247,0.15));border-bottom:2px solid var(--cyan);padding:6px 16px;display:none;align-items:center;justify-content:center;gap:10px;flex-shrink:0;animation:bannerIn .5s ease;}
+@keyframes bannerIn{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}
+#sp-banner.visible{display:flex;}
+.sp-dot{width:7px;height:7px;border-radius:50%;background:var(--cyan);box-shadow:0 0 8px var(--cyan);animation:pulsC 1.2s ease-in-out infinite;}
+@keyframes pulsC{0%,100%{opacity:1;box-shadow:0 0 8px var(--cyan)}50%{opacity:.4;box-shadow:0 0 20px var(--cyan)}}
+.sp-text{font-family:'Bebas Neue',sans-serif;font-size:1.05rem;letter-spacing:4px;color:var(--cyan);}
+.sp-sub{font-family:'DM Mono',monospace;font-size:0.58rem;color:rgba(79,195,247,0.65);letter-spacing:1px;}
+
+/* MAP SVG AREA */
+.map-svg-wrap{flex:1;position:relative;display:flex;align-items:center;justify-content:center;padding:8px;min-height:0;overflow:hidden;}
+#map-svg{width:100%;height:100%;overflow:visible;max-height:100%;display:block;}
+
+/* LEGEND */
+.leg{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:7px 14px;background:rgba(6,13,24,0.55);border-top:1px solid rgba(46,117,182,0.12);flex-shrink:0;}
+.li{display:flex;align-items:center;gap:5px;font-size:0.57rem;color:var(--dim);text-transform:uppercase;letter-spacing:1px;}
+.ld{width:7px;height:7px;border-radius:50%;}
+.lf{width:9px;height:9px;border-radius:2px;transform:rotate(45deg);}
+
+/* MODE BADGE */
+.mode-badge{position:absolute;bottom:10px;right:12px;font-family:'DM Mono',monospace;font-size:0.55rem;letter-spacing:2px;text-transform:uppercase;padding:3px 9px;border-radius:3px;transition:all .4s;pointer-events:none;}
+.mb-sin{background:rgba(46,117,182,0.1);color:rgba(238,233,221,0.28);border:1px solid rgba(46,117,182,0.2);}
+.mb-con{background:rgba(79,195,247,0.12);color:var(--cyan);border:1px solid rgba(79,195,247,0.45);box-shadow:0 0 12px rgba(79,195,247,0.2);}
+
+/* ZONAS */
+.z{stroke:rgba(238,233,221,0.09);stroke-width:0.8;transition:fill .55s ease,filter .55s ease,stroke .55s ease,stroke-width .55s ease;}
+.z-neutral{fill:rgba(46,117,182,0.09);}
+.z-alto{fill:rgba(229,57,53,0.38);stroke:rgba(229,57,53,0.85)!important;stroke-width:1.8!important;filter:drop-shadow(0 0 10px rgba(229,57,53,.6));animation:pulsA 2.2s ease-in-out infinite;}
+.z-medio{fill:rgba(251,140,0,0.3);stroke:rgba(251,140,0,0.7)!important;stroke-width:1.4!important;filter:drop-shadow(0 0 6px rgba(251,140,0,.38));}
+.z-bajo{fill:rgba(67,160,71,0.26);stroke:rgba(67,160,71,0.58)!important;stroke-width:1.2!important;filter:drop-shadow(0 0 5px rgba(67,160,71,.3));}
+@keyframes pulsA{0%,100%{opacity:1;filter:drop-shadow(0 0 10px rgba(229,57,53,.6))}50%{opacity:.5;filter:drop-shadow(0 0 22px rgba(229,57,53,1))}}
+.zlbl{font-family:'DM Mono',monospace;font-size:6px;fill:rgba(238,233,221,0.75);pointer-events:none;font-weight:500;}
+
+/* FICHAS */
+.ficha-g{transition:transform 1.1s cubic-bezier(0.34,1.4,0.64,1);}
+.fshape{transition:fill .5s,filter .5s;}
+.f-sin{fill:var(--gold);filter:drop-shadow(0 0 4px rgba(255,179,0,.8));}
+.f-con{fill:var(--cyan);filter:drop-shadow(0 0 5px rgba(79,195,247,.85));}
+.f-warn{fill:var(--orange);filter:drop-shadow(0 0 6px rgba(251,140,0,.9));}
+.f-stay{fill:var(--purple);filter:drop-shadow(0 0 7px rgba(156,39,176,.9));}
+.flbl{font-family:'DM Mono',monospace;font-size:5px;fill:var(--navy);font-weight:700;pointer-events:none;text-anchor:middle;dominant-baseline:middle;}
+.f-ring{fill:none;stroke:none;stroke-width:1.8;opacity:0;transition:stroke .4s,opacity .4s;r:11;}
+.f-ring.on{stroke:var(--cyan);opacity:1;animation:ringP 1.6s ease-in-out infinite;}
+@keyframes ringP{0%,100%{r:11}50%{r:13}}
+.ghost-rect{fill:none;stroke:var(--gold);stroke-width:.9;stroke-dasharray:2.5,2;opacity:0;transition:opacity .35s;}
+.ghost-rect.on{opacity:.4;}
+.ghost-lbl{font-family:'DM Mono',monospace;font-size:4.5px;fill:var(--gold);opacity:0;text-anchor:middle;dominant-baseline:middle;transition:opacity .35s;}
+.ghost-lbl.on{opacity:.32;}
+.move-arrow{stroke:var(--cyan);stroke-width:1.3;fill:none;stroke-dasharray:3,2.5;opacity:0;transition:opacity .4s;}
+.move-arrow.on{opacity:.75;}
+.arrow-head{fill:var(--cyan);opacity:0;transition:opacity .4s;}
+.arrow-head.on{opacity:.75;}
+.proto-badge{display:none;}
+
+/* ── FULLSCREEN MAP ── */
+#fs-overlay{position:fixed;inset:0;background:rgba(4,9,18,0.97);z-index:500;display:none;flex-direction:column;animation:fadeIn .3s ease;}
+#fs-overlay.on{display:flex;}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+
+#fs-topbar{padding:10px 20px;background:rgba(17,34,68,0.85);border-bottom:1px solid rgba(46,117,182,0.28);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+.fs-title{font-family:'Bebas Neue',sans-serif;font-size:1.5rem;letter-spacing:5px;color:var(--cyan);}
+.fs-meta{font-family:'DM Mono',monospace;font-size:0.62rem;color:var(--dim);}
+.fs-step-info{font-family:'DM Mono',monospace;font-size:0.65rem;color:rgba(79,195,247,0.7);letter-spacing:1px;}
+
+#fs-body{flex:1;display:flex;align-items:stretch;gap:0;overflow:hidden;position:relative;}
+
+/* PAN+ZOOM container */
+#fs-pan{flex:1;overflow:hidden;position:relative;cursor:grab;display:flex;align-items:center;justify-content:center;}
+#fs-pan:active{cursor:grabbing;}
+#fs-inner{transform-origin:center center;will-change:transform;}
+#fs-svg{width:88vmin;height:88vmin;overflow:visible;filter:drop-shadow(0 0 50px rgba(46,117,182,0.18));}
+#fs-svg .zlbl{font-size:10px!important;fill:rgba(238,233,221,0.88)!important;}
+#fs-svg .flbl{font-size:8px!important;}
+#fs-svg .f-ring{stroke-width:2.5!important;}
+
+/* FS side info */
+#fs-side{width:260px;background:rgba(6,13,24,0.9);border-left:1px solid rgba(46,117,182,0.22);display:flex;flex-direction:column;overflow-y:auto;flex-shrink:0;}
+#fs-side::-webkit-scrollbar{width:2px;}
+#fs-side::-webkit-scrollbar-thumb{background:rgba(46,117,182,0.3);}
+.fs-card{padding:14px 16px;border-bottom:1px solid rgba(46,117,182,0.12);}
+.fs-card-title{font-family:'DM Mono',monospace;font-size:0.58rem;letter-spacing:2px;text-transform:uppercase;color:var(--cyan);margin-bottom:10px;}
+.fs-zi{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid rgba(46,117,182,0.08);}
+.fs-zi:last-child{border-bottom:none;}
+.fs-zid{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.fs-zin{font-size:0.72rem;color:var(--paper);flex:1;}
+.fs-zib{font-family:'DM Mono',monospace;font-size:0.58rem;padding:2px 6px;border-radius:3px;text-transform:uppercase;letter-spacing:.8px;}
+.b-nd{background:rgba(46,117,182,0.08);color:rgba(238,233,221,0.22);border:1px solid rgba(46,117,182,0.14);}
+.b-alto{background:rgba(229,57,53,0.14);color:#EF9A9A;border:1px solid rgba(229,57,53,0.32);}
+.b-med{background:rgba(251,140,0,0.14);color:#FFCC80;border:1px solid rgba(251,140,0,0.32);}
+.b-baj{background:rgba(67,160,71,0.14);color:#A5D6A7;border:1px solid rgba(67,160,71,0.32);}
+.b-pur{background:rgba(156,39,176,0.14);color:rgba(220,180,255,1);border:1px solid rgba(156,39,176,0.32);}
+
+/* FS ZOOM CONTROLS */
+#fs-zoom-bar{position:absolute;bottom:20px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:8px;background:rgba(6,13,24,0.88);border:1px solid rgba(46,117,182,0.3);padding:7px 14px;border-radius:30px;backdrop-filter:blur(10px);z-index:10;}
+.zc-btn{background:transparent;border:1px solid rgba(46,117,182,0.38);color:var(--paper);width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:1.1rem;line-height:1;transition:all .2s;}
+.zc-btn:hover{background:rgba(46,117,182,0.3);border-color:var(--cyan);color:var(--cyan);}
+.zc-val{font-family:'DM Mono',monospace;font-size:0.65rem;color:var(--dim);min-width:36px;text-align:center;}
+.zc-reset{font-family:'DM Mono',monospace;font-size:0.58rem;color:var(--dim);background:transparent;border:1px solid rgba(46,117,182,0.2);padding:4px 10px;border-radius:12px;cursor:pointer;transition:all .2s;}
+.zc-reset:hover{color:var(--cyan);border-color:var(--cyan);}
+
+/* FS bottom bar */
+#fs-bottombar{padding:10px 20px;background:rgba(17,34,68,0.7);border-top:1px solid rgba(46,117,182,0.2);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+.fs-legend{display:flex;align-items:center;gap:14px;}
+.fs-close-btn{background:transparent;border:1px solid rgba(229,57,53,0.4);color:#EF9A9A;padding:6px 18px;border-radius:4px;font-family:'DM Mono',monospace;font-size:0.6rem;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;transition:all .25s;}
+.fs-close-btn:hover{background:rgba(229,57,53,0.15);}
+
+/* ── PANEL (right side) ── */
+.panel{display:flex;flex-direction:column;gap:9px;overflow-y:auto;}
+.panel::-webkit-scrollbar{width:2px;}
+.panel::-webkit-scrollbar-thumb{background:rgba(46,117,182,0.3);border-radius:2px;}
+.card{background:rgba(6,13,24,0.82);border:1px solid rgba(46,117,182,0.18);border-radius:8px;overflow:hidden;flex-shrink:0;}
+.ch{padding:7px 13px;background:rgba(17,34,68,0.45);border-bottom:1px solid rgba(46,117,182,0.12);}
+.ch-t{font-family:'DM Mono',monospace;font-size:0.56rem;letter-spacing:2px;text-transform:uppercase;color:var(--cyan);}
+.cb{padding:10px 13px;}
+.sr{display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;}
+.sr:last-child{margin-bottom:0;}
+.sl{font-size:0.65rem;color:var(--dim);text-transform:uppercase;letter-spacing:.8px;}
+.sv{font-family:'DM Mono',monospace;font-size:0.67rem;color:var(--paper);}
+.sv.hl{color:var(--gold);}
+.zi{display:flex;align-items:center;gap:7px;padding:5px 0;border-bottom:1px solid rgba(46,117,182,0.08);}
+.zi:last-child{border-bottom:none;}
+.zid{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
+.zin{font-size:0.69rem;color:var(--paper);flex:1;}
+.zib{font-family:'DM Mono',monospace;font-size:0.55rem;padding:2px 5px;border-radius:3px;text-transform:uppercase;letter-spacing:.8px;}
+
+/* PROTO TABLE */
+.proto-table{width:100%;border-collapse:collapse;}
+.proto-table th{font-family:'DM Mono',monospace;font-size:0.52rem;letter-spacing:1px;text-transform:uppercase;color:var(--dim);padding:3px 5px;text-align:left;border-bottom:1px solid rgba(46,117,182,0.15);}
+.proto-table td{font-size:0.67rem;padding:5px 5px;border-bottom:1px solid rgba(46,117,182,0.07);vertical-align:middle;}
+.proto-table tr:last-child td{border-bottom:none;}
+.proto-table tr.proto-active td{background:rgba(229,57,53,0.07);}
+.plvl{font-family:'DM Mono',monospace;font-size:0.56rem;padding:2px 6px;border-radius:3px;font-weight:500;white-space:nowrap;}
+.pl-c{background:rgba(67,160,71,0.14);color:#A5D6A7;border:1px solid rgba(67,160,71,0.28);}
+.pl-m{background:rgba(251,140,0,0.14);color:#FFCC80;border:1px solid rgba(251,140,0,0.28);}
+.pl-a{background:rgba(229,57,53,0.14);color:#EF9A9A;border:1px solid rgba(229,57,53,0.28);}
+.pl-cr{background:rgba(229,57,53,0.28);color:#fff;border:1px solid rgba(229,57,53,0.55);}
+
+/* POPUP */
+#popup-overlay{position:fixed;inset:0;background:rgba(4,9,18,0.85);display:none;align-items:center;justify-content:center;z-index:400;backdrop-filter:blur(5px);animation:fadeIn .3s ease;}
+#popup-overlay.on{display:flex;}
+.popup-box{background:linear-gradient(145deg,rgba(17,34,68,0.98),rgba(6,13,24,0.98));border:1px solid rgba(229,57,53,0.45);border-radius:14px;width:580px;max-width:90vw;box-shadow:0 0 60px rgba(229,57,53,0.22),0 0 100px rgba(46,117,182,0.12);overflow:hidden;animation:popIn .4s cubic-bezier(0.34,1.4,0.64,1);}
+@keyframes popIn{from{opacity:0;transform:scale(0.86)}to{opacity:1;transform:scale(1)}}
+.popup-hdr{padding:15px 20px;background:linear-gradient(90deg,rgba(229,57,53,0.16),rgba(46,117,182,0.18));border-bottom:1px solid rgba(229,57,53,0.25);display:flex;align-items:center;justify-content:space-between;}
+.popup-ttl{font-family:'Bebas Neue',sans-serif;font-size:1.45rem;letter-spacing:3px;color:var(--red);}
+.popup-x{background:transparent;border:none;color:var(--dim);font-size:1.1rem;cursor:pointer;padding:4px;transition:color .2s;}
+.popup-x:hover{color:var(--paper);}
+.popup-body{padding:18px 20px;}
+.popup-zona{font-family:'Bebas Neue',sans-serif;font-size:1.9rem;letter-spacing:4px;color:var(--red);margin-bottom:7px;}
+.popup-bar-wrap{display:flex;align-items:center;gap:10px;margin-bottom:13px;}
+.popup-bar{flex:1;height:5px;background:rgba(46,117,182,0.2);border-radius:3px;overflow:hidden;}
+.popup-fill{height:100%;border-radius:3px;background:linear-gradient(90deg,var(--orange),var(--red));width:0;transition:width 1.3s ease;}
+.popup-pct{font-family:'DM Mono',monospace;font-size:1rem;color:var(--red);}
+.popup-pulse{display:flex;align-items:center;gap:7px;margin-bottom:14px;}
+.pp-dot{width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green);animation:pulsC 1.3s ease-in-out infinite;}
+.pp-txt{font-family:'DM Mono',monospace;font-size:0.6rem;color:rgba(67,160,71,0.85);letter-spacing:1px;text-transform:uppercase;}
+.popup-text{font-size:0.8rem;line-height:1.72;color:rgba(238,233,221,0.82);border-left:3px solid var(--cyan);padding-left:13px;min-height:55px;}
+.popup-text strong{color:var(--cyan);}
+.popup-footer{padding:13px 20px;border-top:1px solid rgba(46,117,182,0.15);display:flex;justify-content:flex-end;}
+.popup-btn{background:var(--accent);color:#fff;border:none;padding:9px 22px;border-radius:6px;font-family:'DM Sans',sans-serif;font-size:0.73rem;font-weight:600;letter-spacing:.8px;text-transform:uppercase;cursor:pointer;transition:all .25s;}
+.popup-btn:hover{background:#3a88cc;}
+
+/* FEEDBACK */
+#fb-card{display:none;}
+#fb-card .ch{background:rgba(79,195,247,0.08);border-bottom-color:rgba(79,195,247,0.2);}
+#fb-card .ch-t{color:var(--cyan);}
+.fb-q{font-size:0.72rem;color:var(--paper);margin-bottom:9px;line-height:1.5;}
+.fb-btns{display:flex;gap:7px;}
+.fb-btn{flex:1;padding:7px 8px;border-radius:5px;border:none;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:0.66rem;font-weight:600;letter-spacing:.5px;text-transform:uppercase;transition:all .25s;}
+.fb-confirm{background:rgba(67,160,71,0.18);color:#A5D6A7;border:1px solid rgba(67,160,71,0.32);}
+.fb-confirm:hover{background:rgba(67,160,71,0.3);}
+.fb-adjust{background:rgba(251,140,0,0.14);color:#FFCC80;border:1px solid rgba(251,140,0,0.28);}
+.fb-adjust:hover{background:rgba(251,140,0,0.25);}
+.fb-input-wrap{display:none;margin-top:9px;}
+.fb-input{width:100%;background:rgba(17,34,68,0.65);border:1px solid rgba(46,117,182,0.35);color:var(--paper);font-family:'DM Sans',sans-serif;font-size:0.7rem;padding:7px 10px;border-radius:5px;outline:none;resize:none;}
+.fb-input::placeholder{color:var(--dim);}
+.fb-input:focus{border-color:var(--cyan);}
+.fb-send{margin-top:5px;width:100%;padding:7px;border-radius:5px;border:none;cursor:pointer;background:var(--accent);color:#fff;font-family:'DM Sans',sans-serif;font-size:0.67rem;font-weight:600;letter-spacing:.5px;text-transform:uppercase;transition:all .25s;}
+.fb-send:hover{background:#3a88cc;}
+.fb-response{display:none;margin-top:9px;}
+.fb-resp-inner{background:rgba(79,195,247,0.06);border:1px solid rgba(79,195,247,0.2);border-radius:5px;padding:9px 11px;}
+.fb-resp-label{font-family:'DM Mono',monospace;font-size:0.53rem;letter-spacing:2px;text-transform:uppercase;color:var(--cyan);margin-bottom:5px;}
+.fb-resp-text{font-size:0.69rem;line-height:1.6;color:rgba(238,233,221,0.8);}
+.fb-resp-text strong{color:var(--cyan);}
+
+/* FOOTER */
+.ftr{display:flex;align-items:center;justify-content:space-between;padding-top:9px;border-top:1px solid rgba(46,117,182,0.18);}
+.ctrl{display:flex;gap:7px;}
+.btn{font-family:'DM Sans',sans-serif;font-size:0.67rem;font-weight:600;letter-spacing:.8px;text-transform:uppercase;padding:7px 15px;border-radius:5px;border:none;cursor:pointer;transition:all .25s;}
+.btn-pri{background:var(--accent);color:#fff;box-shadow:0 0 10px rgba(46,117,182,0.3);}
+.btn-pri:hover{background:#3a88cc;}
+.btn-pri:disabled{background:rgba(46,117,182,0.22);color:rgba(238,233,221,0.22);cursor:default;box-shadow:none;}
+.btn-sec{background:transparent;color:var(--dim);border:1px solid rgba(46,117,182,0.25);}
+.btn-sec:hover{color:var(--paper);border-color:rgba(46,117,182,0.5);}
+.btn-sec:disabled{opacity:.3;cursor:default;}
+.claim{font-family:'Bebas Neue',sans-serif;font-size:1rem;letter-spacing:3px;color:rgba(238,233,221,0.13);}
+.claim span{color:var(--cyan);}
+</style>
+</head>
+<body>
+
+<!-- ── FULLSCREEN MAP OVERLAY ── -->
+<div id="fs-overlay">
+  <div id="fs-topbar">
+    <div>
+      <div class="fs-title">SafePath IA · Bogotá D.C.</div>
+      <div class="fs-meta" id="fs-meta-txt">Viernes · 18:00 hrs · 12 unidades</div>
+    </div>
+    <div class="fs-step-info" id="fs-step-info">Paso 1 · Sin análisis activo</div>
+  </div>
+
+  <div id="fs-body">
+    <!-- SAFEPATH BANNER inside FS -->
+    <div id="fs-banner" style="display:none;position:absolute;top:0;left:0;right:260px;background:linear-gradient(90deg,rgba(79,195,247,0.18),rgba(46,117,182,0.28),rgba(79,195,247,0.18));border-bottom:2px solid var(--cyan);padding:7px 16px;align-items:center;justify-content:center;gap:10px;z-index:20;">
+      <div class="sp-dot"></div>
+      <span class="sp-text">SAFEPATH IA ACTIVO</span>
+      <span class="sp-sub">· 5 años SIEDCO · Bogotá D.C. · Viernes 18:00–22:00</span>
+      <div class="sp-dot"></div>
+    </div>
+    <!-- PAN + ZOOM -->
+    <div id="fs-pan">
+      <div id="fs-inner">
+        <svg id="fs-svg" viewBox="0 0 380 480" xmlns="http://www.w3.org/2000/svg">
+
+          <polygon id="fs-z-suba"          class="z z-neutral" points="82,22 185,18 182,48 192,70 168,88 138,96 102,88 78,66 72,40"/><text class="zlbl" x="130" y="56">Suba</text>
+          <polygon id="fs-z-usaquen"       class="z z-neutral" points="185,18 262,24 272,42 258,72 232,82 205,70 192,48"/><text class="zlbl" x="228" y="50">Usaquén</text>
+          <polygon id="fs-z-engativa"      class="z z-neutral" points="72,40 78,66 88,88 92,112 78,132 55,135 38,115 42,80 55,55"/><text class="zlbl" x="59" y="98">Engativá</text>
+          <polygon id="fs-z-barriosunidos" class="z z-neutral" points="138,96 168,88 175,108 158,128 138,125 122,112"/><text class="zlbl" x="142" y="112">B.Unidos</text>
+          <polygon id="fs-z-chapinero"     class="z z-neutral" points="192,70 205,70 232,82 242,105 228,128 205,132 192,118 190,92"/><text class="zlbl" x="208" y="102">Chapinero</text>
+          <polygon id="fs-z-teusaquillo"   class="z z-neutral" points="92,112 122,112 138,125 158,128 160,148 142,158 118,152 95,145"/><text class="zlbl" x="122" y="138">Teusaquillo</text>
+          <polygon id="fs-z-santafe"       class="z z-neutral" points="205,132 228,128 238,150 225,170 205,165 195,150"/><text class="zlbl" x="210" y="150">Santa Fe</text>
+          <polygon id="fs-z-martires"      class="z z-neutral" points="160,148 158,128 175,108 192,118 192,148 178,160 162,158"/><text class="zlbl" x="170" y="138">Mártires</text>
+          <polygon id="fs-z-fontibon"      class="z z-neutral" points="38,115 55,135 62,158 48,178 28,172 18,150 22,128"/><text class="zlbl" x="34" y="148">Fontibón</text>
+          <polygon id="fs-z-kennedy"       class="z z-neutral" points="48,178 62,158 92,145 108,148 115,172 110,205 92,218 65,222 40,208 36,185"/><text class="zlbl" x="72" y="188">Kennedy</text>
+          <polygon id="fs-z-puentearanda"  class="z z-neutral" points="108,148 138,138 142,158 142,175 128,185 112,180 110,162"/><text class="zlbl" x="116" y="165">Pte.Aranda</text>
+          <polygon id="fs-z-antonionarino" class="z z-neutral" points="160,158 178,160 192,148 192,168 182,182 162,178 155,168"/><text class="zlbl" x="163" y="170">A.Nariño</text>
+          <polygon id="fs-z-tunjuelito"    class="z z-neutral" points="112,180 128,185 142,175 148,188 140,205 118,208 108,195"/><text class="zlbl" x="120" y="195">Tunjuelito</text>
+          <polygon id="fs-z-rafaeluribe"   class="z z-neutral" points="155,168 162,178 182,182 188,198 178,218 158,222 145,208 145,188"/><text class="zlbl" x="157" y="198">R.Uribe</text>
+          <polygon id="fs-z-bosa"          class="z z-neutral" points="36,185 40,208 52,228 38,242 18,232 12,210 18,190"/><text class="zlbl" x="28" y="215">Bosa</text>
+          <polygon id="fs-z-ciudadbolivar" class="z z-neutral" points="65,222 92,218 110,205 118,208 140,205 138,225 128,252 105,268 78,262 55,242 52,228"/><text class="zlbl" x="88" y="240">Cd.Bolívar</text>
+          <polygon id="fs-z-usme"          class="z z-neutral" points="145,208 158,222 178,218 175,248 162,275 142,282 125,265 128,252 138,225"/><text class="zlbl" x="147" y="248">Usme</text>
+          <polygon id="fs-z-sancristobal"  class="z z-neutral" points="188,198 205,195 218,212 215,238 198,248 182,242 175,228 175,208"/><text class="zlbl" x="191" y="222">S.Cristóbal</text>
+          <polygon id="fs-z-candelaria"    class="z z-neutral" points="192,148 205,165 208,182 195,192 182,188 182,168"/><text class="zlbl" x="191" y="172">Candelaria</text>
+          <polygon id="fs-z-sumapaz"       class="z z-neutral" points="105,268 128,252 142,282 138,308 118,318 92,305 85,282"/><text class="zlbl" x="106" y="288">Sumapaz</text>
+
+          <!-- FANTASMAS -->
+          <rect id="fs-gh1" class="ghost-rect" x="65" y="178" width="14" height="14" rx="2"/>
+          <text id="fs-gh1l" class="ghost-lbl" x="72" y="185">U1</text>
+          <rect id="fs-gh2" class="ghost-rect" x="51" y="193" width="14" height="14" rx="2"/>
+          <text id="fs-gh2l" class="ghost-lbl" x="58" y="200">U2</text>
+          <rect id="fs-gh4" class="ghost-rect" x="215" y="111" width="14" height="14" rx="2"/>
+          <text id="fs-gh4l" class="ghost-lbl" x="222" y="118">U4</text>
+
+          <!-- FLECHA U4 -->
+          <line id="fs-arr4" class="move-arrow" x1="215" y1="118" x2="162" y2="112"/>
+          <polygon id="fs-arh4" class="arrow-head" points="162,108 155,115 169,115"/>
+
+          <!-- FICHAS -->
+          <g class="ficha-g" id="fs-f1" transform="translate(72,185)">
+            <circle class="f-ring" id="fs-f1-ring" cx="0" cy="0" r="11"/>
+            <rect class="fshape f-sin" x="-7" y="-7" width="14" height="14" rx="2"/>
+            <text class="flbl" x="0" y="0">U1</text>
+            <g id="fs-f1-badge" class="proto-badge">
+              <rect x="-12" y="9" width="24" height="8" rx="2" fill="rgba(156,39,176,0.25)" stroke="rgba(156,39,176,0.7)" stroke-width=".7"/>
+              <text x="0" y="14" text-anchor="middle" dominant-baseline="middle" font-family="DM Mono,monospace" font-size="4" fill="rgba(220,180,255,1)">ACOMP</text>
+            </g>
+          </g>
+          <g class="ficha-g" id="fs-f2" transform="translate(58,200)">
+            <circle class="f-ring" id="fs-f2-ring" cx="0" cy="0" r="11"/>
+            <rect class="fshape f-sin" x="-7" y="-7" width="14" height="14" rx="2"/>
+            <text class="flbl" x="0" y="0">U2</text>
+            <g id="fs-f2-badge" class="proto-badge">
+              <rect x="-14" y="9" width="28" height="8" rx="2" fill="rgba(251,140,0,0.2)" stroke="rgba(251,140,0,0.7)" stroke-width=".7"/>
+              <text x="0" y="14" text-anchor="middle" dominant-baseline="middle" font-family="DM Mono,monospace" font-size="4" fill="rgba(255,200,120,1)">+22:00 HRS</text>
+            </g>
+          </g>
+          <g class="ficha-g" id="fs-f3" transform="translate(208,105)"><rect class="fshape f-sin" x="-7" y="-7" width="14" height="14" rx="2"/><text class="flbl" x="0" y="0">U3</text></g>
+          <g class="ficha-g" id="fs-f4" transform="translate(222,118)"><rect class="fshape f-sin" x="-7" y="-7" width="14" height="14" rx="2"/><text class="flbl" x="0" y="0">U4</text></g>
+          <g class="ficha-g" id="fs-f5" transform="translate(118,58)"><rect class="fshape f-sin" x="-7" y="-7" width="14" height="14" rx="2"/><text class="flbl" x="0" y="0">U5</text></g>
+          <g class="ficha-g" id="fs-f6" transform="translate(148,68)"><rect class="fshape f-sin" x="-7" y="-7" width="14" height="14" rx="2"/><text class="flbl" x="0" y="0">U6</text></g>
+          <g class="ficha-g" id="fs-f7" transform="translate(215,152)"><rect class="fshape f-sin" x="-7" y="-7" width="14" height="14" rx="2"/><text class="flbl" x="0" y="0">U7</text></g>
+          <g class="ficha-g" id="fs-f8" transform="translate(62,112)"><rect class="fshape f-sin" x="-7" y="-7" width="14" height="14" rx="2"/><text class="flbl" x="0" y="0">U8</text></g>
+          <g class="ficha-g" id="fs-f9" transform="translate(235,48)"><rect class="fshape f-sin" x="-7" y="-7" width="14" height="14" rx="2"/><text class="flbl" x="0" y="0">U9</text></g>
+          <g class="ficha-g" id="fs-f10" transform="translate(40,148)"><rect class="fshape f-sin" x="-7" y="-7" width="14" height="14" rx="2"/><text class="flbl" x="0" y="0">U10</text></g>
+          <g class="ficha-g" id="fs-f11" transform="translate(162,198)"><rect class="fshape f-sin" x="-7" y="-7" width="14" height="14" rx="2"/><text class="flbl" x="0" y="0">U11</text></g>
+          <g class="ficha-g" id="fs-f12" transform="translate(125,192)"><rect class="fshape f-sin" x="-7" y="-7" width="14" height="14" rx="2"/><text class="flbl" x="0" y="0">U12</text></g>
+        </svg>
+      </div>
+      <!-- ZOOM CONTROLS -->
+      <div id="fs-zoom-bar">
+        <button class="zc-btn" onclick="fsZoom(-0.2)">−</button>
+        <span class="zc-val" id="zc-val">100%</span>
+        <button class="zc-btn" onclick="fsZoom(+0.2)">+</button>
+        <button class="zc-reset" onclick="fsReset()">Reset</button>
+      </div>
+    </div>
+
+    <!-- SIDE INFO -->
+    <div id="fs-side">
+      <div class="fs-card">
+        <div class="fs-card-title">Escenario</div>
+        <div style="font-size:.72rem;line-height:1.7;color:var(--dim)">
+          <div style="color:var(--gold);font-family:'DM Mono',monospace;font-size:.75rem;margin-bottom:4px">RápidoExpress</div>
+          Viernes · 18:00–22:00<br>12 domiciliarios · 23 pedidos
+        </div>
+      </div>
+      <div class="fs-card" id="fs-zonas-card">
+        <div class="fs-card-title">Inteligencia de Zonas</div>
+        <div id="fs-zonas-sin">
+          <div class="fs-zi"><div class="fs-zid" style="background:rgba(46,117,182,0.3)"></div><span class="fs-zin">Kennedy</span><span class="fs-zib b-nd">Sin datos</span></div>
+          <div class="fs-zi"><div class="fs-zid" style="background:rgba(46,117,182,0.3)"></div><span class="fs-zin">Chapinero</span><span class="fs-zib b-nd">Sin datos</span></div>
+          <div class="fs-zi"><div class="fs-zid" style="background:rgba(46,117,182,0.3)"></div><span class="fs-zin">Suba</span><span class="fs-zib b-nd">Sin datos</span></div>
+          <div class="fs-zi"><div class="fs-zid" style="background:rgba(46,117,182,0.3)"></div><span class="fs-zin">Santa Fe</span><span class="fs-zib b-nd">Sin datos</span></div>
+          <div class="fs-zi"><div class="fs-zid" style="background:rgba(46,117,182,0.3)"></div><span class="fs-zin">Engativá</span><span class="fs-zib b-nd">Sin datos</span></div>
+          <div class="fs-zi"><div class="fs-zid" style="background:rgba(46,117,182,0.3)"></div><span class="fs-zin">Usaquén</span><span class="fs-zib b-nd">Sin datos</span></div>
+        </div>
+        <div id="fs-zonas-con" style="display:none">
+          <div class="fs-zi"><div class="fs-zid" style="background:var(--red);box-shadow:0 0 6px var(--red)"></div><span class="fs-zin">Kennedy</span><span class="fs-zib b-alto">Alto · 84%</span></div>
+          <div class="fs-zi"><div class="fs-zid" style="background:var(--orange)"></div><span class="fs-zin">Chapinero</span><span class="fs-zib b-med">Medio · 61%</span></div>
+          <div class="fs-zi"><div class="fs-zid" style="background:var(--green)"></div><span class="fs-zin">Suba</span><span class="fs-zib b-baj">Bajo · 22%</span></div>
+          <div class="fs-zi"><div class="fs-zid" style="background:var(--orange)"></div><span class="fs-zin">Santa Fe</span><span class="fs-zib b-med">Medio · 55%</span></div>
+          <div class="fs-zi"><div class="fs-zid" style="background:var(--green)"></div><span class="fs-zin">Engativá</span><span class="fs-zib b-baj">Bajo · 18%</span></div>
+          <div class="fs-zi"><div class="fs-zid" style="background:var(--green)"></div><span class="fs-zin">Usaquén</span><span class="fs-zib b-baj">Bajo · 15%</span></div>
+        </div>
+      </div>
+      <div class="fs-card" id="fs-units-card" style="display:none">
+        <div class="fs-card-title">Unidades bajo protocolo</div>
+        <div class="fs-zi"><div class="fs-zid" style="background:var(--purple);box-shadow:0 0 5px var(--purple)"></div><span class="fs-zin">U1 · Kennedy</span><span class="fs-zib b-pur">Acompañamiento</span></div>
+        <div class="fs-zi"><div class="fs-zid" style="background:var(--orange)"></div><span class="fs-zin">U2 · Kennedy</span><span class="fs-zib b-med">+22:00 hrs</span></div>
+        <div class="fs-zi"><div class="fs-zid" style="background:var(--cyan)"></div><span class="fs-zin">U4 · Reasignada</span><span class="fs-zib b-baj">→ B.Unidos</span></div>
+      </div>
+      <div class="fs-card">
+        <div class="fs-card-title">Leyenda</div>
+        <div class="li" style="margin-bottom:6px"><div class="ld" style="background:var(--red);box-shadow:0 0 5px var(--red)"></div>&nbsp;Riesgo Alto</div>
+        <div class="li" style="margin-bottom:6px"><div class="ld" style="background:var(--orange)"></div>&nbsp;Riesgo Medio</div>
+        <div class="li" style="margin-bottom:6px"><div class="ld" style="background:var(--green)"></div>&nbsp;Riesgo Bajo</div>
+        <div class="li" style="margin-bottom:6px"><div class="lf" style="background:var(--gold)"></div>&nbsp;Sin análisis</div>
+        <div class="li" style="margin-bottom:6px"><div class="lf" style="background:var(--purple)"></div>&nbsp;Acompañamiento</div>
+        <div class="li" style="margin-bottom:6px"><div class="lf" style="background:var(--orange)"></div>&nbsp;Ajuste horario</div>
+        <div class="li"><div class="lf" style="background:var(--cyan)"></div>&nbsp;Optimizada</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="fs-bottombar">
+    <div style="font-family:'DM Mono',monospace;font-size:.6rem;color:var(--dim)">Scroll · Pinch para zoom · Arrastrar para navegar</div>
+    <button class="fs-close-btn" onclick="closeFS()">✕ Cerrar vista completa</button>
+  </div>
+</div>
+
+<!-- ── POPUP RECOMENDACION ── -->
+<div id="popup-overlay">
+  <div class="popup-box">
+    <div class="popup-hdr">
+      <span class="popup-ttl">⚠ Alerta Operativa — Kennedy Centro</span>
+      <button class="popup-x" onclick="closePopup()">✕</button>
+    </div>
+    <div class="popup-body">
+      <div class="popup-zona">Kennedy Centro · Riesgo Alto</div>
+      <div class="popup-bar-wrap">
+        <div class="popup-bar"><div class="popup-fill" id="popup-fill"></div></div>
+        <span class="popup-pct">84%</span>
+      </div>
+      <div class="popup-pulse"><div class="pp-dot"></div><span class="pp-txt">SIEDCO · 5 años de datos · Análisis activo</span></div>
+      <div class="popup-text" id="popup-text"></div>
+    </div>
+    <div class="popup-footer">
+      <button class="popup-btn" onclick="closePopup()">Entendido — El coordinador decide →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── SHELL ── -->
+<div class="shell">
+
+  <!-- HEADER -->
+  <div class="hdr">
+    <div class="brand">
+      <span class="brand-name">SafePath IA</span>
+      <span class="brand-chip">Pitch</span>
+      <span class="brand-sub" style="margin-left:8px">Consultora de Seguridad con IA</span>
+    </div>
+    <div class="steps">
+      <div class="step active" id="s1"><div class="step-n">1</div>Sin SafePath</div>
+      <div class="sep">›</div>
+      <div class="step" id="s2"><div class="step-n">2</div>Mapa activo</div>
+      <div class="sep">›</div>
+      <div class="step" id="s3"><div class="step-n">3</div>Protocolo</div>
+      <div class="sep">›</div>
+      <div class="step" id="s4"><div class="step-n">4</div>Recomendación</div>
+      <div class="sep">›</div>
+      <div class="step" id="s5"><div class="step-n">5</div>Feedback</div>
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <div class="main">
+
+    <!-- MAP -->
+    <div class="map-wrap">
+      <div class="map-bar">
+        <div class="map-bar-left">
+          <span class="map-bar-title">Tablero Operativo · Bogotá D.C.</span>
+          <span class="map-bar-meta" id="map-meta">Viernes · 18:00 hrs · Sin análisis</span>
+        </div>
+        <button class="btn-fullscreen" onclick="openFS()">⛶ &nbsp;Pantalla completa</button>
+      </div>
+
+      <div id="sp-banner">
+        <div class="sp-dot"></div>
+        <span class="sp-text">SAFEPATH IA ACTIVO</span>
+        <span class="sp-sub">· 5 años SIEDCO · Bogotá D.C. · Viernes 18:00–22:00</span>
+        <div class="sp-dot"></div>
+      </div>
+
+      <div class="map-svg-wrap">
+        <div class="mode-badge mb-sin" id="mbadge">Sin SafePath IA</div>
+        <svg id="map-svg" viewBox="0 0 380 480" xmlns="http://www.w3.org/2000/svg">
+
+          <polygon id="z-suba"          class="z z-neutral" points="82,22 185,18 182,48 192,70 168,88 138,96 102,88 78,66 72,40"/><text class="zlbl" x="130" y="56">Suba</text>
+          <polygon id="z-usaquen"       class="z z-neutral" points="185,18 262,24 272,42 258,72 232,82 205,70 192,48"/><text class="zlbl" x="228" y="50">Usaquén</text>
+          <polygon id="z-engativa"      class="z z-neutral" points="72,40 78,66 88,88 92,112 78,132 55,135 38,115 42,80 55,55"/><text class="zlbl" x="59" y="98">Engativá</text>
+          <polygon id="z-barriosunidos" class="z z-neutral" points="138,96 168,88 175,108 158,128 138,125 122,112"/><text class="zlbl" x="142" y="112">B.Unidos</text>
+          <polygon id="z-chapinero"     class="z z-neutral" points="192,70 205,70 232,82 242,105 228,128 205,132 192,118 190,92"/><text class="zlbl" x="208" y="102">Chapinero</text>
+          <polygon id="z-teusaquillo"   class="z z-neutral" points="92,112 122,112 138,125 158,128 160,148 142,158 118,152 95,145"/><text class="zlbl" x="122" y="138">Teusaquillo</text>
+          <polygon id="z-santafe"       class="z z-neutral" points="205,132 228,128 238,150 225,170 205,165 195,150"/><text class="zlbl" x="210" y="150">Santa Fe</text>
+          <polygon id="z-martires"      class="z z-neutral" points="160,148 158,128 175,108 192,118 192,148 178,160 162,158"/><text class="zlbl" x="170" y="138">Mártires</text>
+          <polygon id="z-fontibon"      class="z z-neutral" points="38,115 55,135 62,158 48,178 28,172 18,150 22,128"/><text class="zlbl" x="34" y="148">Fontibón</text>
+          <polygon id="z-kennedy"       class="z z-neutral" points="48,178 62,158 92,145 108,148 115,172 110,205 92,218 65,222 40,208 36,185"/><text class="zlbl" x="72" y="188">Kennedy</text>
+          <polygon id="z-puentearanda"  class="z z-neutral" points="108,148 138,138 142,158 142,175 128,185 112,180 110,162"/><text class="zlbl" x="116" y="165">Pte.Aranda</text>
+          <polygon id="z-antonionarino" class="z z-neutral" points="160,158 178,160 192,148 192,168 182,182 162,178 155,168"/><text class="zlbl" x="163" y="170">A.Nariño</text>
+          <polygon id="z-tunjuelito"    class="z z-neutral" points="112,180 128,185 142,175 148,188 140,205 118,208 108,195"/><text class="zlbl" x="120" y="195">Tunjuelito</text>
+          <polygon id="z-rafaeluribe"   class="z z-neutral" points="155,168 162,178 182,182 188,198 178,218 158,222 145,208 145,188"/><text class="zlbl" x="157" y="198">R.Uribe</text>
+          <polygon id="z-bosa"          class="z z-neutral" points="36,185 40,208 52,228 38,242 18,232 12,210 18,190"/><text class="zlbl" x="28" y="215">Bosa</text>
+          <polygon id="z-ciudadbolivar" class="z z-neutral" points="65,222 92,218 110,205 118,208 140,205 138,225 128,252 105,268 78,262 55,242 52,228"/><text class="zlbl" x="88" y="240">Cd.Bolívar</text>
+          <polygon id="z-usme"          class="z z-neutral" points="145,208 158,222 178,218 175,248 162,275 142,282 125,265 128,252 138,225"/><text class="zlbl" x="147" y="248">Usme</text>
+          <polygon id="z-sancristobal"  class="z z-neutral" points="188,198 205,195 218,212 215,238 198,248 182,242 175,228 175,208"/><text class="zlbl" x="191" y="222">S.Cristóbal</text>
+          <polygon id="z-candelaria"    class="z z-neutral" points="192,148 205,165 208,182 195,192 182,188 182,168"/><text class="zlbl" x="191" y="172">Candelaria</text>
+          <polygon id="z-sumapaz"       class="z z-neutral" points="105,268 128,252 142,282 138,308 118,318 92,305 85,282"/><text class="zlbl" x="106" y="288">Sumapaz</text>
+
+          <!-- FANTASMAS -->
+          <rect id="gh1" class="ghost-rect" x="65" y="178" width="14" height="14" rx="2"/>
+          <text id="gh1l" class="ghost-lbl" x="72" y="185">U1</text>
+          <rect id="gh2" class="ghost-rect" x="51" y="193" width="14" height="14" rx="2"/>
+          <text id="gh2l" class="ghost-lbl" x="58" y="200">U2</text>
+          <rect id="gh4" class="ghost-rect" x="215" y="111" width="14" height="14" rx="2"/>
+          <text id="gh4l" class="ghost-lbl" x="222" y="118">U4</text>
+
+          <!-- FLECHA U4 -->
+          <line id="arr4" class="move-arrow" x1="215" y1="118" x2="162" y2="112"/>
+          <polygon id="arh4" class="arrow-head" points="162,108 155,115 169,115"/>
+
+          <!-- FICHAS -->
+          <g class="ficha-g" id="f1" transform="translate(72,185)">
+            <circle class="f-ring" id="f1-ring" cx="0" cy="0" r="11"/>
+            <rect class="fshape f-sin" x="-7" y="-7" width="14" height="14" rx="2"/>
+            <text class="flbl" x="0" y="0">U1</text>
+            <g id="f1-badge" class="proto-badge">
+              <rect x="-12" y="9" width="24" height="8" rx="2" fill="rgba(156,39,176,0.25)" stroke="rgba(156,39,176,0.7)" stroke-width=".7"/>
+              <text x="0" y="14" text-anchor="middle" dominant-baseline="middle" font-family="DM Mono,monospace" font-size="4" fill="rgba(220,180,255,1)">ACOMP</text>
+            </g>
+          </g>
+          <g class="ficha-g" id="f2" transform="translate(58,200)">
+            <circle class="f-ring" id="f2-ring" cx="0" cy="0" r="11"/>
+            <rect class="fshape f-sin" x="-7" y="-7" width="14" height="14" rx="2"/>
+            <text class="flbl" x="0" y="0">U2</text>
+            <g id="f2-badge" class="proto-badge">
+              <rect x="-14" y="9" width="28" height="8" rx="2" fill="rgba(251,140,0,0.2)" stroke="rgba(251,140,0,0.7)" stroke-width=".7"/>
+              <text x="0" y="14" text-anchor="middle" dominant-baseline="middle" font-family="DM Mono,monospace" font-size="4" fill="rgba(255,200,120,1)">+22:00 HRS</text>
+            </g>
+          </g>
+          <g class="ficha-g" id="f3" transform="translate(208,105)"><rect class="fshape f-sin" x="-7" y="-7" width="14" height="14" rx="2"/><text class="flbl" x="0" y="0">U3</text></g>
+          <g class="ficha-g" id="f4" transform="translate(222,118)"><rect class="fshape f-sin" x="-7" y="-7" width="14" height="14" rx="2"/><text class="flbl" x="0" y="0">U4</text></g>
+          <g class="ficha-g" id="f5" transform="translate(118,58)"><rect class="fshape f-sin" x="-7" y="-7" width="14" height="14" rx="2"/><text class="flbl" x="0" y="0">U5</text></g>
+          <g class="ficha-g" id="f6" transform="translate(148,68)"><rect class="fshape f-sin" x="-7" y="-7" width="14" height="14" rx="2"/><text class="flbl" x="0" y="0">U6</text></g>
+          <g class="ficha-g" id="f7" transform="translate(215,152)"><rect class="fshape f-sin" x="-7" y="-7" width="14" height="14" rx="2"/><text class="flbl" x="0" y="0">U7</text></g>
+          <g class="ficha-g" id="f8" transform="translate(62,112)"><rect class="fshape f-sin" x="-7" y="-7" width="14" height="14" rx="2"/><text class="flbl" x="0" y="0">U8</text></g>
+          <g class="ficha-g" id="f9" transform="translate(235,48)"><rect class="fshape f-sin" x="-7" y="-7" width="14" height="14" rx="2"/><text class="flbl" x="0" y="0">U9</text></g>
+          <g class="ficha-g" id="f10" transform="translate(40,148)"><rect class="fshape f-sin" x="-7" y="-7" width="14" height="14" rx="2"/><text class="flbl" x="0" y="0">U10</text></g>
+          <g class="ficha-g" id="f11" transform="translate(162,198)"><rect class="fshape f-sin" x="-7" y="-7" width="14" height="14" rx="2"/><text class="flbl" x="0" y="0">U11</text></g>
+          <g class="ficha-g" id="f12" transform="translate(125,192)"><rect class="fshape f-sin" x="-7" y="-7" width="14" height="14" rx="2"/><text class="flbl" x="0" y="0">U12</text></g>
+        </svg>
+      </div>
+
+      <div class="leg">
+        <div class="li"><div class="ld" style="background:var(--red);box-shadow:0 0 5px var(--red)"></div>Riesgo Alto</div>
+        <div class="li"><div class="ld" style="background:var(--orange)"></div>Riesgo Medio</div>
+        <div class="li"><div class="ld" style="background:var(--green)"></div>Riesgo Bajo</div>
+        <div class="li" style="margin-left:auto"><div class="lf" style="background:var(--gold)"></div>Sin análisis</div>
+        <div class="li"><div class="lf" style="background:var(--purple)"></div>Acompañamiento</div>
+        <div class="li"><div class="lf" style="background:var(--orange)"></div>Ajuste horario</div>
+        <div class="li"><div class="lf" style="background:var(--cyan)"></div>Optimizada</div>
+      </div>
+    </div>
+
+    <!-- PANEL -->
+    <div class="panel">
+      <div class="card">
+        <div class="ch"><span class="ch-t">Escenario Activo</span></div>
+        <div class="cb">
+          <div class="sr"><span class="sl">Empresa</span><span class="sv hl">RápidoExpress</span></div>
+          <div class="sr"><span class="sl">Día</span><span class="sv">Viernes</span></div>
+          <div class="sr"><span class="sl">Franja</span><span class="sv">18:00 — 22:00</span></div>
+          <div class="sr"><span class="sl">Unidades</span><span class="sv">12 domiciliarios</span></div>
+          <div class="sr"><span class="sl">Pedidos</span><span class="sv hl">23 activos</span></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="ch"><span class="ch-t">Inteligencia de Zonas</span></div>
+        <div class="cb">
+          <div id="zl-sin">
+            <div class="zi"><div class="zid" style="background:rgba(46,117,182,0.3)"></div><span class="zin">Kennedy</span><span class="zib b-nd">Sin datos</span></div>
+            <div class="zi"><div class="zid" style="background:rgba(46,117,182,0.3)"></div><span class="zin">Chapinero</span><span class="zib b-nd">Sin datos</span></div>
+            <div class="zi"><div class="zid" style="background:rgba(46,117,182,0.3)"></div><span class="zin">Suba</span><span class="zib b-nd">Sin datos</span></div>
+            <div class="zi"><div class="zid" style="background:rgba(46,117,182,0.3)"></div><span class="zin">Santa Fe</span><span class="zib b-nd">Sin datos</span></div>
+            <div class="zi"><div class="zid" style="background:rgba(46,117,182,0.3)"></div><span class="zin">Engativá</span><span class="zib b-nd">Sin datos</span></div>
+            <div class="zi"><div class="zid" style="background:rgba(46,117,182,0.3)"></div><span class="zin">Usaquén</span><span class="zib b-nd">Sin datos</span></div>
+          </div>
+          <div id="zl-con" style="display:none">
+            <div class="zi"><div class="zid" style="background:var(--red);box-shadow:0 0 5px var(--red)"></div><span class="zin">Kennedy</span><span class="zib b-alto">Alto · 84%</span></div>
+            <div class="zi"><div class="zid" style="background:var(--orange)"></div><span class="zin">Chapinero</span><span class="zib b-med">Medio · 61%</span></div>
+            <div class="zi"><div class="zid" style="background:var(--green)"></div><span class="zin">Suba</span><span class="zib b-baj">Bajo · 22%</span></div>
+            <div class="zi"><div class="zid" style="background:var(--orange)"></div><span class="zin">Santa Fe</span><span class="zib b-med">Medio · 55%</span></div>
+            <div class="zi"><div class="zid" style="background:var(--green)"></div><span class="zin">Engativá</span><span class="zib b-baj">Bajo · 18%</span></div>
+            <div class="zi"><div class="zid" style="background:var(--green)"></div><span class="zin">Usaquén</span><span class="zib b-baj">Bajo · 15%</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="card" id="proto-card" style="display:none">
+        <div class="ch"><span class="ch-t">Protocolo Activo · Kennedy</span></div>
+        <div class="cb">
+          <table class="proto-table">
+            <tr><th>Nivel</th><th>Acción</th></tr>
+            <tr><td><span class="plvl pl-c">Bajo</span></td><td>Operación normal</td></tr>
+            <tr><td><span class="plvl pl-m">Medio</span></td><td>Confirmación de llegada</td></tr>
+            <tr class="proto-active"><td><span class="plvl pl-a">Alto ◀</span></td><td><strong>Acompañamiento o ajuste horario</strong></td></tr>
+            <tr><td><span class="plvl pl-cr">Crítico</span></td><td>Suspensión de operación</td></tr>
+          </table>
+        </div>
+      </div>
+      <div class="card" id="units-card" style="display:none">
+        <div class="ch"><span class="ch-t">Unidades bajo protocolo</span></div>
+        <div class="cb">
+          <div class="zi"><div class="zid" style="background:var(--purple);box-shadow:0 0 5px var(--purple)"></div><span class="zin">U1 · Kennedy</span><span class="zib" style="background:rgba(156,39,176,0.15);color:rgba(220,180,255,1);border:1px solid rgba(156,39,176,0.35)">Acompañamiento</span></div>
+          <div class="zi"><div class="zid" style="background:var(--orange)"></div><span class="zin">U2 · Kennedy</span><span class="zib b-med">+22:00 hrs</span></div>
+          <div class="zi"><div class="zid" style="background:var(--cyan)"></div><span class="zin">U4 · Reasignada</span><span class="zib b-baj">→ B.Unidos</span></div>
+        </div>
+      </div>
+      <div class="card" id="fb-card">
+        <div class="ch"><span class="ch-t">Feedback del Coordinador</span></div>
+        <div class="cb">
+          <div class="fb-q" id="fb-q">¿Esta recomendación refleja su situación real?</div>
+          <div class="fb-btns" id="fb-btns">
+            <button class="fb-btn fb-confirm" onclick="fbConfirm()">✓ Confirmar</button>
+            <button class="fb-btn fb-adjust"  onclick="fbAdjust()">✎ Ajustar</button>
+          </div>
+          <div class="fb-input-wrap" id="fb-input-wrap">
+            <textarea class="fb-input" id="fb-input" rows="2" placeholder="Ej: U1 ya tiene escolta asignada..."></textarea>
+            <button class="fb-send" onclick="fbSend()">Integrar al sistema →</button>
+          </div>
+          <div class="fb-response" id="fb-response">
+            <div class="fb-resp-inner">
+              <div class="fb-resp-label">SafePath IA · Modelo actualizado</div>
+              <div class="fb-resp-text" id="fb-resp-text"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <div class="ftr">
+    <div class="ctrl">
+      <button class="btn btn-sec" onclick="reset()">↺ Reiniciar</button>
+      <button class="btn btn-sec" id="btn-prev" onclick="prevStep()" disabled>← Anterior</button>
+      <button class="btn btn-pri" id="btn-next" onclick="nextStep()">Siguiente →</button>
+    </div>
+    <div class="claim">No le decimos a dónde <span>no ir</span>. Le decimos <span>cómo ir</span>.</div>
+  </div>
+</div>
+
+<script>
+// ── STATE ──
+let step=0, MAX=4, popupShown=false;
+let fsZoomLevel=1, fsPanX=0, fsPanY=0, fsIsDragging=false, fsDragStartX=0, fsDragStartY=0;
+
+const ZONA_RISK={
+  'z-kennedy':'alto','z-chapinero':'medio','z-suba':'bajo','z-santafe':'medio',
+  'z-engativa':'bajo','z-usaquen':'bajo','z-barriosunidos':'bajo','z-teusaquillo':'bajo',
+  'z-fontibon':'bajo','z-martires':'medio','z-puentearanda':'medio','z-antonionarino':'medio',
+  'z-rafaeluribe':'medio','z-tunjuelito':'bajo','z-ciudadbolivar':'medio','z-bosa':'bajo',
+  'z-usme':'bajo','z-sancristobal':'medio','z-candelaria':'medio','z-sumapaz':'bajo',
+};
+
+const STEP_LABELS=['Sin análisis activo','Mapa de riesgo activo','Protocolo aplicado','Recomendación emitida','Feedback del coordinador'];
+
+const REC_TEXT=`Hurto a personas concentrado entre <strong>18:00–22:00 hrs</strong>. Tendencia <strong>+17%</strong> vs. semana anterior.<br><br><strong>U1</strong> permanece en Kennedy con <strong>protocolo de acompañamiento</strong>. Confirmar llegada cada 30 min.<br><br><strong>U2</strong> reprogramada para operar después de las <strong>22:00 hrs</strong>, fuera de franja crítica.<br><br><strong>U4</strong> reasignada a Barrios Unidos. Sin exposición a riesgo alto.`;
+
+// ── STEP LOGIC ──
+function setStepUI(n){
+  ['s1','s2','s3','s4','s5'].forEach((id,i)=>{
+    document.getElementById(id).className='step'+(i<n?' done':i===n?' active':'');
+  });
+  document.getElementById('btn-prev').disabled=n===0;
+  document.getElementById('btn-next').disabled=n>=MAX;
+  document.getElementById('fs-step-info').textContent=`Paso ${n+1} · ${STEP_LABELS[n]}`;
+}
+
+function nextStep(){ if(step<MAX){step++;applyStep(step);setStepUI(step);} }
+function prevStep(){ if(step>0){step--;applyStep(step);setStepUI(step);} }
+
+function applyStep(s){
+  // ZONAS
+  Object.entries(ZONA_RISK).forEach(([id,risk])=>{
+    const el=document.getElementById(id);
+    if(el) el.className='z '+(s>=1?'z-'+risk:'z-neutral');
+  });
+
+  // BANNER
+  document.getElementById('sp-banner').classList.toggle('visible',s>=1);
+
+  // BADGE + META
+  const badge=document.getElementById('mbadge');
+  if(s>=1){badge.textContent='SafePath IA Activo';badge.className='mode-badge mb-con';}
+  else{badge.textContent='Sin SafePath IA';badge.className='mode-badge mb-sin';}
+  document.getElementById('map-meta').textContent=s>=1?'Viernes · 18:00 hrs · SafePath activo':'Viernes · 18:00 hrs · Sin análisis';
+  document.getElementById('fs-meta-txt').textContent='Viernes · 18:00 hrs · '+(s>=1?'SafePath activo':'Sin análisis');
+
+  // ZONA LISTS
+  document.getElementById('zl-sin').style.display=s>=1?'none':'block';
+  document.getElementById('zl-con').style.display=s>=1?'block':'none';
+  document.getElementById('fs-zonas-sin').style.display=s>=1?'none':'block';
+  document.getElementById('fs-zonas-con').style.display=s>=1?'block':'none';
+
+  // FICHAS
+  // Posiciones por paso
+  const defPos={f1:'translate(72,185)',f2:'translate(58,200)',f3:'translate(208,105)',f4:'translate(222,118)',f5:'translate(118,58)',f6:'translate(148,68)',f7:'translate(215,152)',f8:'translate(62,112)',f9:'translate(235,48)',f10:'translate(40,148)',f11:'translate(162,198)',f12:'translate(125,192)'};
+  const movPos={f4:'translate(148,112)'};
+
+  // Colores por ficha según paso
+  const fichaColor={
+    f1: s>=2?'fshape f-stay':'fshape f-sin',
+    f2: s>=2?'fshape f-warn':'fshape f-sin',
+    f3: s>=2?'fshape f-warn':'fshape f-sin',
+    f4: s>=2?'fshape f-con':'fshape f-sin',
+    f5: s>=2?'fshape f-con':'fshape f-sin',
+    f6: s>=2?'fshape f-con':'fshape f-sin',
+    f7: s>=2?'fshape f-con':'fshape f-sin',
+    f8: s>=2?'fshape f-con':'fshape f-sin',
+    f9: s>=2?'fshape f-con':'fshape f-sin',
+    f10:s>=2?'fshape f-con':'fshape f-sin',
+    f11:s>=2?'fshape f-con':'fshape f-sin',
+    f12:s>=2?'fshape f-con':'fshape f-sin',
+  };
+
+  Object.keys(fichaColor).forEach(id=>{
+    const grp=document.getElementById(id);
+    if(!grp) return;
+    // Posición
+    const pos=(s>=2 && movPos[id]) ? movPos[id] : defPos[id];
+    grp.setAttribute('transform', pos);
+    // Color — buscar el rect directamente, no por clase
+    const rect=grp.getElementsByTagName('rect')[0];
+    if(rect) rect.setAttribute('class', fichaColor[id]);
+  });
+
+  document.getElementById('f1-badge').style.display=s>=2?'block':'none';
+  document.getElementById('f2-badge').style.display=s>=2?'block':'none';
+  document.getElementById('f1-ring').className='f-ring'+(s>=2?' on':'');
+  document.getElementById('f2-ring').className='f-ring'+(s>=2?' on':'');
+  ['gh1','gh1l','gh2','gh2l','gh4','gh4l'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(!el)return;
+    el.className=(id.endsWith('l')?'ghost-lbl':'ghost-rect')+(s>=2?' on':'');
+  });
+  document.getElementById('arr4').className='move-arrow'+(s>=2?' on':'');
+  document.getElementById('arh4').className='arrow-head'+(s>=2?' on':'');
+
+  // CARDS
+  document.getElementById('proto-card').style.display=s>=2?'block':'none';
+  document.getElementById('units-card').style.display=s>=2?'block':'none';
+  document.getElementById('fs-units-card').style.display=s>=2?'block':'none';
+
+  // POPUP
+  if(s===3&&!popupShown){openPopup();}
+  else if(s<3){closePopup();popupShown=false;}
+
+  // SYNC FS
+  syncFSZones();
+
+  // FEEDBACK
+  document.getElementById('fb-card').style.display=s>=4?'block':'none';
+}
+
+// ── FULLSCREEN ──
+function openFS(){
+  document.getElementById('fs-overlay').classList.add('on');
+  syncFSZones();
+}
+function closeFS(){
+  document.getElementById('fs-overlay').classList.remove('on');
+}
+
+function syncFSZones(){
+  // Sync zones by direct ID reference (no innerHTML clone = no duplicate IDs)
+  Object.keys(ZONA_RISK).forEach(id=>{
+    const src=document.getElementById(id);
+    const dst=document.getElementById('fs-'+id);
+    if(src&&dst) dst.setAttribute('class', src.getAttribute('class'));
+  });
+  // Sync fichas
+  ['f1','f2','f3','f4','f5','f6','f7','f8','f9','f10','f11','f12'].forEach(id=>{
+    const src=document.getElementById(id);
+    const dst=document.getElementById('fs-'+id);
+    if(!src||!dst) return;
+    dst.setAttribute('transform', src.getAttribute('transform'));
+    const sr=src.getElementsByTagName('rect')[0];
+    const dr=dst.getElementsByTagName('rect')[0];
+    if(sr&&dr) dr.setAttribute('class', sr.getAttribute('class'));
+    // badges
+    const sb=document.getElementById(id+'-badge');
+    const db=document.getElementById('fs-'+id+'-badge');
+    if(sb&&db) db.style.display=sb.style.display;
+    // rings
+    const srng=document.getElementById(id+'-ring');
+    const drng=document.getElementById('fs-'+id+'-ring');
+    if(srng&&drng) drng.setAttribute('class', srng.getAttribute('class'));
+  });
+  // ghosts + arrows
+  ['gh1','gh1l','gh2','gh2l','gh4','gh4l','arr4','arh4'].forEach(id=>{
+    const src=document.getElementById(id);
+    const dst=document.getElementById('fs-'+id);
+    if(src&&dst) dst.setAttribute('class', src.getAttribute('class'));
+  });
+  // banner + side panel
+  const fb=document.getElementById('fs-banner');
+  if(fb) fb.style.display=step>=1?'flex':'none';
+  const fzs=document.getElementById('fs-zonas-sin');
+  const fzc=document.getElementById('fs-zonas-con');
+  const fuc=document.getElementById('fs-units-card');
+  if(fzs) fzs.style.display=step>=1?'none':'block';
+  if(fzc) fzc.style.display=step>=1?'block':'none';
+  if(fuc) fuc.style.display=step>=2?'block':'none';
+}
+function syncFSFichas(s,shapes,defPos){ syncFSZones(); }
+
+// PAN + ZOOM
+function updateFSTransform(){
+  const inner=document.getElementById('fs-inner');
+  inner.style.transform=`translate(${fsPanX}px,${fsPanY}px) scale(${fsZoomLevel})`;
+  document.getElementById('zc-val').textContent=Math.round(fsZoomLevel*100)+'%';
+}
+function fsZoom(delta){
+  fsZoomLevel=Math.min(4,Math.max(0.5,fsZoomLevel+delta));
+  updateFSTransform();
+}
+function fsReset(){fsZoomLevel=1;fsPanX=0;fsPanY=0;updateFSTransform();}
+
+const fsPan=document.getElementById('fs-pan');
+fsPan.addEventListener('mousedown',e=>{fsIsDragging=true;fsDragStartX=e.clientX-fsPanX;fsDragStartY=e.clientY-fsPanY;});
+fsPan.addEventListener('mousemove',e=>{if(!fsIsDragging)return;fsPanX=e.clientX-fsDragStartX;fsPanY=e.clientY-fsDragStartY;updateFSTransform();});
+fsPan.addEventListener('mouseup',()=>{fsIsDragging=false;});
+fsPan.addEventListener('mouseleave',()=>{fsIsDragging=false;});
+fsPan.addEventListener('wheel',e=>{e.preventDefault();fsZoom(e.deltaY<0?0.15:-0.15);},{passive:false});
+
+// Touch
+fsPan.addEventListener('touchstart',e=>{if(e.touches.length===1){fsIsDragging=true;fsDragStartX=e.touches[0].clientX-fsPanX;fsDragStartY=e.touches[0].clientY-fsPanY;}},{passive:true});
+fsPan.addEventListener('touchmove',e=>{if(!fsIsDragging||e.touches.length!==1)return;fsPanX=e.touches[0].clientX-fsDragStartX;fsPanY=e.touches[0].clientY-fsDragStartY;updateFSTransform();},{passive:true});
+fsPan.addEventListener('touchend',()=>{fsIsDragging=false;});
+
+// ── POPUP ──
+function openPopup(){
+  popupShown=true;
+  document.getElementById('popup-overlay').classList.add('on');
+  setTimeout(()=>{document.getElementById('popup-fill').style.width='84%';},300);
+  const txt=document.getElementById('popup-text');
+  txt.innerHTML='';
+  typewriterHTML(txt,REC_TEXT,13);
+}
+function closePopup(){
+  document.getElementById('popup-overlay').classList.remove('on');
+  document.getElementById('popup-fill').style.width='0';
+}
+
+// ── FEEDBACK ──
+function fbConfirm(){
+  document.getElementById('fb-btns').style.display='none';
+  document.getElementById('fb-q').style.display='none';
+  document.getElementById('fb-response').style.display='block';
+  typewriterHTML(document.getElementById('fb-resp-text'),
+    `<strong>Decisión registrada.</strong> El modelo integra esta operación como referencia válida para Kennedy, viernes noche.<br><br><strong>SafePath aprende. El coordinador decide.</strong>`,20);
+}
+function fbAdjust(){
+  document.getElementById('fb-input-wrap').style.display='block';
+  const input=document.getElementById('fb-input');
+  input.value='';
+  const demo='U1 ya tiene escolta asignada por la empresa desde las 17:00';
+  let i=0;
+  const t=setInterval(()=>{input.value=demo.substring(0,i);i++;if(i>demo.length)clearInterval(t);},38);
+}
+function fbSend(){
+  const val=document.getElementById('fb-input').value.trim();
+  if(!val)return;
+  document.getElementById('fb-input-wrap').style.display='none';
+  document.getElementById('fb-btns').style.display='none';
+  document.getElementById('fb-q').style.display='none';
+  document.getElementById('fb-response').style.display='block';
+  typewriterHTML(document.getElementById('fb-resp-text'),
+    `<strong>Contexto integrado:</strong> "${val}"<br><br>Riesgo operativo de <strong>U1 recalculado</strong>. Escolta confirmada — acompañamiento ya cubierto por la empresa.<br><br>El modelo actualiza el perfil con información del coordinador.<br><strong>SafePath aprende. El coordinador decide.</strong>`,17);
+}
+
+function typewriterHTML(el,html,speed){
+  let i=0;el.innerHTML='';
+  const iv=setInterval(()=>{i++;el.innerHTML=html.substring(0,i);if(i>=html.length)clearInterval(iv);},speed);
+}
+
+function reset(){
+  step=0;popupShown=false;fsZoomLevel=1;fsPanX=0;fsPanY=0;
+  closePopup();closeFS();updateFSTransform();
+  applyStep(0);setStepUI(0);
+  document.getElementById('fb-btns').style.display='flex';
+  document.getElementById('fb-q').style.display='block';
+  document.getElementById('fb-input-wrap').style.display='none';
+  document.getElementById('fb-input').value='';
+  document.getElementById('fb-response').style.display='none';
+  document.getElementById('fb-resp-text').innerHTML='';
+  document.getElementById('popup-text').innerHTML='';
+}
+</script>
+</body>
+</html>
